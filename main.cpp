@@ -50,9 +50,82 @@ struct step {
     promote = promote_;
   }
   bool operator ==(step other) {
-    return from == other.from && to == other.to;
+    return from == other.from && to == other.to && promote == other.promote;
   } 
 };
+
+char to_lower(char c) {
+  if (c >= 'A' && c <= 'Z') {
+    return c - 'A' + 'a';
+  }
+  return c;
+}
+
+bool is_digit(char c) {
+  return c >= '0' && c <= '9';
+}
+
+bool is_letter(char c) {
+  c = to_lower(c);
+  return c >= 'a' && c <= 'z';
+}
+
+bool ok_input(string s) {
+  if (s.length() < 4 || s.length() > 5) {
+    return 0;
+  }
+  if (s.length() == 5) {
+    char prom = to_lower(s[4]);
+    if (prom != 'q' && prom != 'r' && prom != 'b' && prom != 'k') {
+      return 0;
+    }
+  }
+  if (is_letter(s[0]) && is_letter(s[2]) && is_digit(s[1]) && is_digit(s[3])) {
+    if (to_lower(s[0]) <= 'h' && to_lower(s[2]) <= 'h' && s[1] <= '8' && 
+      s[1] >= '1' && s[3] <= '8' && s[3] >= '1') {
+      
+      return 1;
+    }
+  }
+  return 0;
+}
+
+step input() {
+  string s;
+  if (s == "resign") {
+    cout << "WELL PLAYED" << endl;
+    exit(0);
+  }
+  while (cin >> s) {
+    if (ok_input(s)) {
+      break;
+    }
+    else {
+      cout << "WRONG FORMAT. TRY AGAIN" << endl;
+    }
+  }
+  step ans;
+  ans.from.x = to_lower(s[0]) - 'a';
+  ans.from.y = to_lower(s[1]) - '1';
+  ans.to.x = to_lower(s[2]) - 'a';
+  ans.to.y = to_lower(s[3]) - '1';
+  if (s.length() == 5) {
+    char prom = to_lower(s[4]);
+    if (prom == 'q') {
+      ans.promote = QUEEN;
+    }
+    if (prom == 'r') {
+      ans.promote = ROOK;
+    }
+    if (prom == 'b') {
+      ans.promote = BISHOP;
+    }
+    if (prom == 'k') {
+      ans.promote = KNIGHT;
+    }
+  }
+  return ans;
+}
 
 void output(step last) {
   cout << static_cast<char>(last.from.x + 'A');
@@ -94,21 +167,13 @@ struct position {
   bool move;
 
   bool in_check(bool side) {
-    square king_position;
-    for (int i = 0; i < SZ; i++) {
-      for (int j = 0; j < SZ; j++) {
-        if (data[i][j].side == side && data[i][j].type == KING) {
-          king_position = {i, j};
-          break;
-        }
-      }
-    }
     for (int i = 0; i < SZ; i++) {
       for (int j = 0; j < SZ; j++) {
         if (data[i][j].type != EMPTY && data[i][j].side != side) {
           vector <step> all_steps = data[i][j].get_all_steps(*this, i, j);
           for (auto step : all_steps) {
-            if (step.to == king_position) {
+            if (data[step.to.x][step.to.y].type == KING && 
+              data[step.to.x][step.to.y].side == side) {
               return 1;
             }
           }
@@ -139,6 +204,58 @@ struct position {
       return 1;
     }
     return 0;
+  }
+
+  bool end_check() {
+    if (win()) {
+      if (move == WHITE) {
+        cout << "BLACK WINS" << endl;
+      }
+      else {
+        cout << "WHITE WINS" << endl;
+      }
+      return 1;
+    }
+    if (draw()) {
+      cout << "DRAW" << endl;
+      return 1;
+    }
+    return 0;
+  }
+
+  void output() {
+    for (int i = SZ - 1; i >= 0; i--) {
+      for (int j = 0; j < SZ; j++) {
+        if (data[j][i].type == EMPTY) {
+          cout << ".";
+          continue;
+        }
+        char x;
+        if (data[j][i].type == PAWN) {
+          x = 'P';
+        }
+        if (data[j][i].type == KNIGHT) {
+          x = 'N';
+        }
+        if (data[j][i].type == BISHOP) {
+          x = 'B';
+        }
+        if (data[j][i].type == ROOK) {
+          x = 'R';
+        }
+        if (data[j][i].type == QUEEN) {
+          x = 'Q';
+        }
+        if (data[j][i].type == KING) {
+          x = 'K';
+        }
+        if (data[j][i].type == BLACK) {
+          x = to_lower(x);
+        }
+        cout << x;
+      }
+      cout << endl;
+    }
   }
 
   double eval() { /// evals from the point of the now moving player
@@ -175,7 +292,7 @@ position make_move(position cur, step step) {
   // en pasant
   if (ans.data[step.from.x][step.from.y].type == PAWN && 
     (abs(step.from.x - step.to.x) == 1 && abs(step.from.y - step.to.y) == 1)
-      && ans.data[step.to.x][step.to.x].type == EMPTY) {
+      && ans.data[step.to.x][step.to.y].type == EMPTY) {
 
     if (ans.data[step.from.x][step.from.y].side == WHITE) {
       ans.data[step.to.x][step.to.y - 1].type = EMPTY; 
@@ -417,6 +534,7 @@ vector <step> piece::get_all_steps(position &cur, int x, int y) {
     if (cur.data[x + 1][y].type == EMPTY && cur.data[x + 2][y].type == EMPTY
       && cur.data[x][y].moved == false && cur.data[x + 3][y].type == ROOK && 
         cur.data[x + 3][y].moved == false) {
+      // cout << "TRYING TO CASTLE" << endl;
       position cur1 = cur;
       cur1.data[x + 1][y].type = KING;
       cur1.data[x + 1][y].side = side;
@@ -472,6 +590,72 @@ vector <step> piece::get_all_steps(position &cur, int x, int y) {
 
 position starting;
 
+void play_vs_ai() {
+  position cur = starting;
+  for (int it = 0; it < MAX_MOVES; it++) {
+    // cout << "EVALUATION: " << cur.eval() << endl;
+    cur.end_check();
+    step best = cur.choose_move();
+    output(best);
+    cur = make_move(cur, best);
+  }
+}
+
+bool check_move(position &cur, step last) {
+  vector <step> possible_moves = 
+    cur.data[last.from.x][last.from.y].get_all_steps(cur, last.from.x, last.from.y);
+  possible_moves = remove_bad_moves(possible_moves, cur);
+  for (step x : possible_moves) {
+    if (x == last) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+void play_vs_human() {
+  cout << "CHOOSE YOUR SIDE: TYPE WHITE OR BLACK" << endl;
+  string s;
+  while (cin >> s) {
+    for (int i = 0; i < s.length(); i++) {
+      s[i] = to_lower(s[i]);
+    }
+    if (s != "white" && s != "black") {
+      cout << "WRONG FORMAT. TRY AGAINNNNNNNNNN" << endl;
+      continue;
+    }
+    else {
+      break;
+    }
+  }
+  position cur = starting;
+  if (s == "black") {
+    step best = cur.choose_move();
+    output(best);
+    cur = make_move(cur, best);
+  }
+  while (1) {
+    if (cur.end_check()) {
+      break;
+    }
+    step user_move = input();
+    // cout << "YOUR MOVE: ";
+    // output(user_move);
+    if (!check_move(cur, user_move)) {
+      cout << "IMPOSSIBLE MOVE (OR MAYBE IVAN IS UEBAN). TRY A DIFFERENT ONE" << endl;
+      continue;
+    }
+    if (cur.end_check()) {
+      break;
+    }
+    cur = make_move(cur, user_move);
+    step best = cur.choose_move();
+    output(best);
+    cur = make_move(cur, best);
+    cur.output();
+  }
+}
+
 int main() {
   for (int i = 0; i < SZ; i++) {
     starting.data[i][1] = {WHITE, PAWN};
@@ -497,27 +681,8 @@ int main() {
   starting.data[6][7] = {BLACK, KNIGHT};
   starting.data[7][7] = {BLACK, ROOK};
 
+  play_vs_human();
   // step e4 = {{4, 1}, {4, 3}};
 
-  position cur = starting;
-  for (int it = 0; it < MAX_MOVES; it++) {
-    cout << "EVALUATION: " << cur.eval() << endl;
-    if (cur.win()) {
-      if (cur.move == WHITE) {
-        cout << "BLACK WINS" << endl;
-      }
-      else {
-        cout << "WHITE WINS" << endl;
-      }
-      exit(0);
-    }
-    if (cur.draw()) {
-      cout << "DRAW" << endl;
-      exit(0);
-    }
-    step best = cur.choose_move();
-    output(best);
-    cur = make_move(cur, best);
-  }
   return 0;
 }
