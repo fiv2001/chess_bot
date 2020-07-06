@@ -19,6 +19,10 @@ const int KING = 6;
 const int WHITE = 0;
 const int BLACK = 1;
 
+const int MIN_DEPTH = 2;
+
+const int MAX_DEPTH = 6;
+
 const int MAX_MOVES = 200; /// maximum amount of moves if bot is playing against itself
 
 struct square {
@@ -49,9 +53,17 @@ struct step {
     to.y = to_.second;
     promote = promote_;
   }
+
   bool operator ==(step other) {
     return from == other.from && to == other.to && promote == other.promote;
-  } 
+  }
+
+  void output() {
+    cout << static_cast<char>(from.x + 'A');
+    cout << from.y + 1;
+    cout << static_cast<char>(to.x + 'A');
+    cout << to.y + 1 << endl;
+  }
 };
 
 char to_lower(char c) {
@@ -127,12 +139,12 @@ step input() {
   return ans;
 }
 
-void output(step last) {
-  cout << static_cast<char>(last.from.x + 'A');
-  cout << last.from.y + 1;
-  cout << static_cast<char>(last.to.x + 'A');
-  cout << last.to.y + 1 << endl;
-}
+// void output(step last) {
+//   cout << static_cast<char>(last.from.x + 'A');
+//   cout << last.from.y + 1;
+//   cout << static_cast<char>(last.to.x + 'A');
+//   cout << last.to.y + 1 << endl;
+// }
 
 bool in(int x, int y) {
   return x >= 0 && x < 8 && y >= 0 && y < 8; 
@@ -289,21 +301,22 @@ struct position {
     }
   }
 
-  double eval() { /// evals from the point of the now moving player
+  double eval() {
     double ans = 0;
     if (win()) {
       return -inf;
     }
     if (draw()) {
+      // cout << "DRARARAW" << endl;
       return 0;
     }
-    if (all_positions[*this] != 0) {
+    if (all_positions[*this] >= 2) {
       return 0;
     }
     vector <int> cost = {0, 1, 3, 3, 5, 9, 0};
     for (int i = 0; i < SZ; i++) {
       for (int j = 0; j < SZ; j++) {
-        if (data[i][j].side == move) {
+        if (data[i][j].side == WHITE) {
           ans += cost[data[i][j].type];
         }
         else {
@@ -315,12 +328,25 @@ struct position {
     position other = *this;
     other.move ^= 1;
     vector <step> moves_1 = other.find_all_moves();
-    ans += (double)moves.size() * MOVE_COST - (double)moves_1.size() * MOVE_COST;
+    double dans = (double)moves.size() * MOVE_COST - (double)moves_1.size() * MOVE_COST;
+    if (move == BLACK) {
+      dans = -dans;
+    }
+    ans += dans;
     // cout << ((int)moves.size() - (int)moves_1.size()) << " " << ans << " DEBUG EVAL" << endl;
     return ans;
   }
 
-  step choose_move();
+  pair <step, double> search(int depth, double alpha, double beta, bool color);
+
+  step choose_move() {
+    pair <step, double> best = search(0, -inf, inf, move);
+    return best.first;
+  }
+
+  bool cmp(const step a, const step b) const {
+    return data[a.to.x][a.to.y].type > data[b.to.x][b.to.y].type;
+  }
 };
 
 
@@ -420,32 +446,108 @@ vector <step> position::find_all_moves() {
   return all;
 }
 
-step position::choose_move() {
-  vector <step> all = find_moves();
-  double mx = -inf;
-  step ans;
-  for (auto move : all) {
-    double mx1 = -inf;
-    position nw = make_move(*this, move);
-    vector <step> all1 = nw.find_moves();
-    for (auto move1 : all1) {
-      position nw1 = make_move(nw, move1);
-      double val = nw1.eval();
-      mx1 = max(mx1, -val);
-      // output(move1);
-      // cout << val << endl << endl;
-    }
-    double dmx = -mx1;
-    // cout << "DMX " << dmx << endl;
-    if (mx < dmx) {
-      mx = dmx;
-      ans = move;
-    }
-    // output(move);
-    // cout << "DMX " << dmx << " " << mx << endl << endl;
+pair <step, double> position::search(int depth, double alpha, double beta, bool color) { // returns move and evaluation
+  step best;
+  if (draw()) {
+    return {best, 0};
   }
-  return ans;
+  if (win()) {
+    return {best, -inf};
+  }
+  // cout << depth << " DEPTH" << endl;
+  if (depth == MAX_DEPTH) {
+    return {best, eval()};
+  }
+  vector <step> all = find_moves();
+  double val;
+  vector <step> M[7];
+  for (auto move : all) {
+    M[data[move.to.x][move.to.y].type].push_back(move);
+  }
+  all.clear();
+  for (int i = 0; i < 7; i++) {
+    for (auto move : M[i]) {
+      all.push_back(move);
+    }
+  }
+  reverse(all.begin(), all.end());
+  if (color == WHITE) {
+    val = -inf;
+    for (auto move : all) {
+      if (data[move.to.x][move.to.y].type == EMPTY && depth >= MIN_DEPTH) {
+        continue;
+      }
+      position nw = make_move(*this, move);
+      all_positions[nw]++;
+      pair <step, double> best1 = nw.search(depth + 1, alpha, beta, color ^ 1);
+      all_positions[nw]--;
+      // cout << best1.second << " ";
+      // move.output();
+      if (val < best1.second) {
+        val = best1.second;
+        best = move;
+      }
+      alpha = max(alpha, best1.second);
+      if (alpha >= beta) {
+        break;
+      }
+    }
+    if (depth >= MIN_DEPTH) {
+      val = max(val, eval());
+    }
+  }
+  else {
+    val = inf;
+    for (auto move : all) {
+      if (data[move.to.x][move.to.y].type == EMPTY && depth >= MIN_DEPTH) {
+        continue;
+      }
+      position nw = make_move(*this, move);
+      all_positions[nw]++;
+      pair <step, double> best1 = nw.search(depth + 1, alpha, beta, color ^ 1);
+      all_positions[nw]--;
+      if (val > best1.second) {
+        val = best1.second;
+        best = move;
+      }
+      beta = min(beta, best1.second);
+      if (alpha >= beta) {
+        break;
+      }
+    }
+    if (depth >= MIN_DEPTH) {
+      val = min(val, eval());
+    }
+  }
+  return {best, val};
 }
+
+// step position::choose_move() {
+//   vector <step> all = find_moves();
+//   double mx = -inf;
+//   step ans;
+//   for (auto move : all) {
+//     double mx1 = -inf;
+//     position nw = make_move(*this, move);
+//     vector <step> all1 = nw.find_moves();
+//     for (auto move1 : all1) {
+//       position nw1 = make_move(nw, move1);
+//       double val = nw1.eval();
+//       mx1 = max(mx1, -val);
+//       // output(move1);
+//       // cout << val << endl << endl;
+//     }
+//     double dmx = -mx1;
+//     // cout << "DMX " << dmx << endl;
+//     if (mx < dmx) {
+//       mx = dmx;
+//       ans = move;
+//     }
+//     // output(move);
+//     // cout << "DMX " << dmx << " " << mx << endl << endl;
+//   }
+//   return ans;
+// }
 
 void piece::add_sweep_moves(vector <step> &ans, position &cur, int dx, int dy, int x, int y) {
   for (int x1 = x + dx, y1 = y + dy; in(x1, y1); x1 += dx, y1 += dy) {
@@ -636,7 +738,8 @@ void play_vs_ai() {
       break;
     }
     step best = cur.choose_move();
-    output(best);
+    // output(best);
+    best.output();
     cur = make_move(cur, best);
     all_positions[cur]++;
   }
@@ -673,7 +776,8 @@ void play_vs_human() {
   all_positions[cur]++;
   if (s == "black") {
     step best = cur.choose_move();
-    output(best);
+    // output(best);
+    best.output();
     cur = make_move(cur, best);
   }
   while (1) {
@@ -693,10 +797,11 @@ void play_vs_human() {
     cur = make_move(cur, user_move);
     all_positions[cur]++;
     step best = cur.choose_move();
-    output(best);
+    // output(best);
+    best.output();
     cur = make_move(cur, best);
     all_positions[cur]++;
-    cur.output();
+    // cur.output();
   }
 }
 
