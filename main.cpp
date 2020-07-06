@@ -140,11 +140,28 @@ bool in(int x, int y) {
 
 struct position;
 
+map <position, int> all_positions;
+
 struct piece {
   bool side = 0; // 0 - white, 1 - black;
   int type = 0; // 0 - empty, 1 - pawn, 2 - knight, 3 - bishop, 4 - rook,
   // 5 - queen, 6 - king
   bool moved = 0;
+
+  bool operator< (const piece other) const {
+    if (side == other.side) {
+      return type < other.type;
+    }
+    return side < other.side;
+  }
+
+  bool operator==(const piece other) const {
+    return !((*this) < other || other < (*this));
+  }
+
+  bool operator!=(const piece other) const {
+    return !((*this) == other);
+  }
   
   piece() {
     type = 0;
@@ -165,6 +182,17 @@ struct position {
   step last_step;
   piece data[SZ][SZ];
   bool move;
+
+  bool operator<(const position other) const {
+    for (int i = 0; i < SZ; i++) {
+      for (int j = 0; j < SZ; j++) {
+        if (data[i][j] != other.data[i][j]) {
+          return data[i][j] < other.data[i][j];
+        }
+      }
+    }
+    return move < other.move;
+  }
 
   bool in_check(bool side) {
     for (int i = 0; i < SZ; i++) {
@@ -201,6 +229,9 @@ struct position {
   bool draw() { /// only stalemate
     vector <step> moves = find_moves();
     if (!win() && moves.empty()) {
+      return 1;
+    }
+    if (all_positions[*this] >= 3) {
       return 1;
     }
     return 0;
@@ -262,6 +293,12 @@ struct position {
     double ans = 0;
     if (win()) {
       return -inf;
+    }
+    if (draw()) {
+      return 0;
+    }
+    if (all_positions[*this] != 0) {
+      return 0;
     }
     vector <int> cost = {0, 1, 3, 3, 5, 9, 0};
     for (int i = 0; i < SZ; i++) {
@@ -592,12 +629,16 @@ position starting;
 
 void play_vs_ai() {
   position cur = starting;
+  all_positions[cur]++;
   for (int it = 0; it < MAX_MOVES; it++) {
     // cout << "EVALUATION: " << cur.eval() << endl;
-    cur.end_check();
+    if (cur.end_check()) {
+      break;
+    }
     step best = cur.choose_move();
     output(best);
     cur = make_move(cur, best);
+    all_positions[cur]++;
   }
 }
 
@@ -621,14 +662,15 @@ void play_vs_human() {
       s[i] = to_lower(s[i]);
     }
     if (s != "white" && s != "black") {
-      cout << "WRONG FORMAT. TRY AGAINNNNNNNNNN" << endl;
+      cout << "WRONG FORMAT. TRY AGAIN" << endl;
       continue;
     }
     else {
       break;
     }
   }
-  position cur = starting;
+  position cur = starting;  
+  all_positions[cur]++;
   if (s == "black") {
     step best = cur.choose_move();
     output(best);
@@ -642,16 +684,18 @@ void play_vs_human() {
     // cout << "YOUR MOVE: ";
     // output(user_move);
     if (!check_move(cur, user_move)) {
-      cout << "IMPOSSIBLE MOVE (OR MAYBE IVAN IS UEBAN). TRY A DIFFERENT ONE" << endl;
+      cout << "IMPOSSIBLE MOVE. TRY A DIFFERENT ONE" << endl;
       continue;
     }
     if (cur.end_check()) {
       break;
     }
     cur = make_move(cur, user_move);
+    all_positions[cur]++;
     step best = cur.choose_move();
     output(best);
     cur = make_move(cur, best);
+    all_positions[cur]++;
     cur.output();
   }
 }
@@ -681,8 +725,7 @@ int main() {
   starting.data[6][7] = {BLACK, KNIGHT};
   starting.data[7][7] = {BLACK, ROOK};
 
-  play_vs_human();
-  // step e4 = {{4, 1}, {4, 3}};
+  play_vs_ai();
 
   return 0;
 }
