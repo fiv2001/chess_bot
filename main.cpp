@@ -6,7 +6,7 @@ mt19937 gen(chrono::steady_clock::now().time_since_epoch().count());
 
 const int inf = 1e9; /// maximum position evaluation
 const int SZ = 8; // size of board
-const double MOVE_COST = 0.02; // used in evaluation
+const double MOVE_COST = 0.05; // used in evaluation
 
 const int EMPTY = 0;
 const int PAWN = 1;
@@ -21,9 +21,11 @@ const int BLACK = 1;
 
 const int MIN_DEPTH = 2;
 
-const int MAX_DEPTH = 6;
+const int MAX_DEPTH = 4;
 
 const int MAX_MOVES = 200; /// maximum amount of moves if bot is playing against itself
+
+const string ENGINE_NAME = "some_weird_bot";
 
 struct square {
   int x;
@@ -59,10 +61,15 @@ struct step {
   }
 
   void output() {
-    cout << static_cast<char>(from.x + 'A');
+    cout << static_cast<char>(from.x + 'a');
     cout << from.y + 1;
-    cout << static_cast<char>(to.x + 'A');
-    cout << to.y + 1 << endl;
+    cout << static_cast<char>(to.x + 'a');
+    cout << to.y + 1;
+    if (promote != 1) {
+      string promotes = "0pnbrqk";
+      cout << promotes[promote];
+    }
+    cout << endl;
   }
 };
 
@@ -93,29 +100,16 @@ bool ok_input(string s) {
     }
   }
   if (is_letter(s[0]) && is_letter(s[2]) && is_digit(s[1]) && is_digit(s[3])) {
-    if (to_lower(s[0]) <= 'h' && to_lower(s[2]) <= 'h' && s[1] <= '8' && 
+    if (to_lower(s[0]) <= 'h' && to_lower(s[2]) <= 'h' && s[1] <= '8' &&
       s[1] >= '1' && s[3] <= '8' && s[3] >= '1') {
-      
+
       return 1;
     }
   }
   return 0;
 }
 
-step input() {
-  string s;
-  if (s == "resign") {
-    cout << "WELL PLAYED" << endl;
-    exit(0);
-  }
-  while (cin >> s) {
-    if (ok_input(s)) {
-      break;
-    }
-    else {
-      cout << "WRONG FORMAT. TRY AGAIN" << endl;
-    }
-  }
+step string_to_step(string s) {
   step ans;
   ans.from.x = to_lower(s[0]) - 'a';
   ans.from.y = to_lower(s[1]) - '1';
@@ -139,6 +133,24 @@ step input() {
   return ans;
 }
 
+step input() {
+  string s;
+  if (s == "resign") {
+    cout << "WELL PLAYED" << endl;
+    exit(0);
+  }
+  while (cin >> s) {
+    if (ok_input(s)) {
+      break;
+    }
+    else {
+      cout << "WRONG FORMAT. TRY AGAIN" << endl;
+    }
+  }
+  step ans = string_to_step(s);
+  return ans;
+}
+
 // void output(step last) {
 //   cout << static_cast<char>(last.from.x + 'A');
 //   cout << last.from.y + 1;
@@ -147,7 +159,7 @@ step input() {
 // }
 
 bool in(int x, int y) {
-  return x >= 0 && x < 8 && y >= 0 && y < 8; 
+  return x >= 0 && x < 8 && y >= 0 && y < 8;
 }
 
 struct position;
@@ -174,19 +186,19 @@ struct piece {
   bool operator!=(const piece other) const {
     return !((*this) == other);
   }
-  
+
   piece() {
     type = 0;
     side = 0;
   }
-  
+
   piece(bool side_, int type_) {
     type = type_;
     side = side_;
   }
-  
+
   void add_sweep_moves(vector <step> &ans, position &cur, int dx, int dy, int x, int y);
-  
+
   vector <step> get_all_steps(position &cur, int x, int y);
 };
 
@@ -212,7 +224,7 @@ struct position {
         if (data[i][j].type != EMPTY && data[i][j].side != side) {
           vector <step> all_steps = data[i][j].get_all_steps(*this, i, j);
           for (auto step : all_steps) {
-            if (data[step.to.x][step.to.y].type == KING && 
+            if (data[step.to.x][step.to.y].type == KING &&
               data[step.to.x][step.to.y].side == side) {
               return 1;
             }
@@ -292,7 +304,8 @@ struct position {
         if (data[j][i].type == KING) {
           x = 'K';
         }
-        if (data[j][i].type == BLACK) {
+        if (data[j][i].side == BLACK) {
+          // cout << j << " " << i << endl;
           x = to_lower(x);
         }
         cout << x;
@@ -353,15 +366,15 @@ struct position {
 position make_move(position cur, step step) {
   position ans = cur;
   // en pasant
-  if (ans.data[step.from.x][step.from.y].type == PAWN && 
+  if (ans.data[step.from.x][step.from.y].type == PAWN &&
     (abs(step.from.x - step.to.x) == 1 && abs(step.from.y - step.to.y) == 1)
       && ans.data[step.to.x][step.to.y].type == EMPTY) {
 
     if (ans.data[step.from.x][step.from.y].side == WHITE) {
-      ans.data[step.to.x][step.to.y - 1].type = EMPTY; 
+      ans.data[step.to.x][step.to.y - 1].type = EMPTY;
     }
     else {
-      ans.data[step.to.x][step.to.y + 1].type = EMPTY; 
+      ans.data[step.to.x][step.to.y + 1].type = EMPTY;
     }
   }
   //promotion
@@ -373,24 +386,25 @@ position make_move(position cur, step step) {
   ans.move ^= 1;
 
   // short castling
-  if (ans.data[step.from.x][step.from.y].type == KING && step.to.x == step.from.x + 3) {
-    ans.data[step.from.x + 1][step.from.y] = ans.data[step.to.x][step.from.y];
-    ans.data[step.from.x + 2][step.from.y] = ans.data[step.from.x][step.from.y];
+  if (ans.data[step.from.x][step.from.y].type == KING && step.to.x == step.from.x + 2) {
+    // cout << "SHORT CASTLING" << endl;
+    ans.data[step.from.x + 1][step.from.y] = ans.data[step.to.x + 1][step.from.y];
+    ans.data[step.to.x][step.from.y] = ans.data[step.from.x][step.from.y];
     ans.data[step.from.x][step.from.y].type = EMPTY;
-    ans.data[step.to.x][step.from.y].type = EMPTY;
+    ans.data[step.to.x + 1][step.from.y].type = EMPTY;
     return ans;
   }
 
   // long castling
-  if (ans.data[step.from.x][step.from.y].type == KING && step.to.x == step.from.x - 4) {
-    ans.data[step.from.x - 1][step.from.y] = ans.data[step.to.x][step.from.y];
+  if (ans.data[step.from.x][step.from.y].type == KING && step.to.x == step.from.x - 2) {
+    ans.data[step.from.x - 1][step.from.y] = ans.data[step.to.x - 2][step.from.y];
     ans.data[step.from.x - 2][step.from.y] = ans.data[step.from.x][step.from.y];
     ans.data[step.from.x][step.from.y].type = EMPTY;
-    ans.data[step.to.x][step.from.y].type = EMPTY;
+    ans.data[step.to.x - 2][step.from.y].type = EMPTY;
     return ans;
   }
 
-  ans.data[step.to.x][step.to.y] = 
+  ans.data[step.to.x][step.to.y] =
     ans.data[step.from.x][step.from.y];
   ans.data[step.from.x][step.from.y].type = EMPTY;
   ans.data[step.to.x][step.to.y].moved = true;
@@ -452,7 +466,12 @@ pair <step, double> position::search(int depth, double alpha, double beta, bool 
     return {best, 0};
   }
   if (win()) {
-    return {best, -inf};
+    if (color == WHITE) {
+      return {best, -inf};
+    }
+    else {
+      return {best, inf};
+    }
   }
   // cout << depth << " DEPTH" << endl;
   if (depth == MAX_DEPTH) {
@@ -483,6 +502,12 @@ pair <step, double> position::search(int depth, double alpha, double beta, bool 
       all_positions[nw]--;
       // cout << best1.second << " ";
       // move.output();
+      if (best1.second == inf) {
+        best1.second -= MOVE_COST;
+      }
+      if (best1.second == -inf) {
+        best1.second += MOVE_COST;
+      }
       if (val < best1.second) {
         val = best1.second;
         best = move;
@@ -506,6 +531,12 @@ pair <step, double> position::search(int depth, double alpha, double beta, bool 
       all_positions[nw]++;
       pair <step, double> best1 = nw.search(depth + 1, alpha, beta, color ^ 1);
       all_positions[nw]--;
+      if (best1.second == inf) {
+        val -= MOVE_COST;
+      }
+      if (best1.second == -inf) {
+        val += MOVE_COST;
+      }
       if (val > best1.second) {
         val = best1.second;
         best = move;
@@ -596,13 +627,13 @@ vector <step> piece::get_all_steps(position &cur, int x, int y) {
         ans.push_back({{x, y}, {x, y + 2}});
       }
       // en pasant
-      step right_en_pasant = {{x + 1, y + 2}, {x + 1, y}}; 
-      step left_en_pasant = {{x - 1, y + 2}, {x - 1, y}}; 
-      if (cur.last_step == right_en_pasant && 
+      step right_en_pasant = {{x + 1, y + 2}, {x + 1, y}};
+      step left_en_pasant = {{x - 1, y + 2}, {x - 1, y}};
+      if (cur.last_step == right_en_pasant &&
           cur.data[cur.last_step.to.x][cur.last_step.to.y].type == PAWN) {
         ans.push_back({{x, y}, {x + 1, y + 1}});
       }
-      if (cur.last_step == left_en_pasant && 
+      if (cur.last_step == left_en_pasant &&
           cur.data[cur.last_step.to.x][cur.last_step.to.y].type == PAWN) {
         ans.push_back({{x, y}, {x - 1, y + 1}});
       }
@@ -611,9 +642,9 @@ vector <step> piece::get_all_steps(position &cur, int x, int y) {
       // one forward
       if (in(x, y - 1) && cur.data[x][y - 1].type == EMPTY) {
         // promotion
-        if (y == 2) {
+        if (y == 1) {
           for (int i = 2; i <= 5; i++) {
-            ans.push_back({{x, y}, {x, y + 1}, i});
+            ans.push_back({{x, y}, {x, y - 1}, i});
           }
         }
         else {
@@ -636,8 +667,8 @@ vector <step> piece::get_all_steps(position &cur, int x, int y) {
         ans.push_back({{x, y}, {x, y - 2}});
       }
       // en pasant
-      step right_en_pasant = {{x + 1, y - 2}, {x + 1, y}}; 
-      step left_en_pasant = {{x - 1, y - 2}, {x - 1, y}}; 
+      step right_en_pasant = {{x + 1, y - 2}, {x + 1, y}};
+      step left_en_pasant = {{x - 1, y - 2}, {x - 1, y}};
       if (cur.last_step == right_en_pasant) {
         ans.push_back({{x, y}, {x + 1, y - 1}});
       }
@@ -671,7 +702,7 @@ vector <step> piece::get_all_steps(position &cur, int x, int y) {
     }
     // short castling
     if (cur.data[x + 1][y].type == EMPTY && cur.data[x + 2][y].type == EMPTY
-      && cur.data[x][y].moved == false && cur.data[x + 3][y].type == ROOK && 
+      && cur.data[x][y].moved == false && cur.data[x + 3][y].type == ROOK &&
         cur.data[x + 3][y].moved == false) {
       // cout << "TRYING TO CASTLE" << endl;
       position cur1 = cur;
@@ -680,12 +711,12 @@ vector <step> piece::get_all_steps(position &cur, int x, int y) {
       cur1.data[x + 2][y].type = KING;
       cur1.data[x + 2][y].side = side;
       if (!cur1.in_check(side)) {
-        ans.push_back({{x, y}, {x + 3, y}});
+        ans.push_back({{x, y}, {x + 2, y}});
       }
     }
     // long castling
     if (cur.data[x - 1][y].type == EMPTY && cur.data[x - 2][y].type == EMPTY
-      && cur.data[x - 3][y].type == EMPTY && cur.data[x][y].moved == false && cur.data[x - 4][y].type == ROOK && 
+      && cur.data[x - 3][y].type == EMPTY && cur.data[x][y].moved == false && cur.data[x - 4][y].type == ROOK &&
         cur.data[x - 4][y].moved == false) {
       position cur1 = cur;
       cur1.data[x - 1][y].type = KING;
@@ -693,7 +724,7 @@ vector <step> piece::get_all_steps(position &cur, int x, int y) {
       cur1.data[x - 2][y].type = KING;
       cur1.data[x - 2][y].side = side;
       if (!cur1.in_check(side)) {
-        ans.push_back({{x, y}, {x - 4, y}});
+        ans.push_back({{x, y}, {x - 2, y}});
       }
     }
   }
@@ -746,7 +777,7 @@ void play_vs_ai() {
 }
 
 bool check_move(position &cur, step last) {
-  vector <step> possible_moves = 
+  vector <step> possible_moves =
     cur.data[last.from.x][last.from.y].get_all_steps(cur, last.from.x, last.from.y);
   possible_moves = remove_bad_moves(possible_moves, cur);
   for (step x : possible_moves) {
@@ -772,7 +803,7 @@ void play_vs_human() {
       break;
     }
   }
-  position cur = starting;  
+  position cur = starting;
   all_positions[cur]++;
   if (s == "black") {
     step best = cur.choose_move();
@@ -805,6 +836,88 @@ void play_vs_human() {
   }
 }
 
+position current_position;
+
+void input_uci() {
+  cout << "id name " + ENGINE_NAME << endl;
+  cout << "id author pink_bittern" << endl;
+  cout << "uciok" << endl;
+}
+
+void input_ready() {
+  cout << "readyok" << endl;
+}
+
+void input_new_game() {
+  all_positions.clear();
+}
+
+bool starts_with(string s, string pattern) {
+  if (s.length() < pattern.length()) {
+    return 0;
+  }
+  return s.substr(0, pattern.length()) == pattern;
+}
+
+void input_position(string command) {
+  all_positions.clear();
+  if (command.find("startpos") != command.npos) {
+    current_position = starting;
+  }
+  if (command.find("moves") != command.npos) {
+    int i = command.find("moves");
+    for (int j = i + 6; j < command.length(); j++) {
+      string move;
+      for (int i1 = j; i1 < command.length(); i1++, j++) {
+        if (command[i1] == ' ') {
+          break;
+        }
+        move += command[i1];
+      }
+      step nw = string_to_step(move);
+      // cout << "inputted move ";
+      // nw.output();
+      current_position = make_move(current_position, nw);
+      all_positions[current_position]++;
+    }
+  }
+}
+
+void input_go() {
+  if (current_position.win()) {
+    cout << "WIN" << endl;
+  }
+  if (current_position.draw()) {
+    cout << "DRAW" << endl;
+  }
+  step x = current_position.choose_move();
+  current_position.output();
+  cout << "bestmove ";
+  x.output();
+}
+
+void uci_communication() {
+  while (true) {
+    string command;
+    getline(cin, command);
+    if (command == "uci") {
+      input_uci();
+    }
+    if (command == "isready") {
+      input_ready();
+    }
+    if (command == "ucinewgame") {
+      input_new_game();
+    }
+    if (starts_with(command, "position")) {
+      input_position(command);
+    }
+    if (starts_with(command, "go")) {
+      input_go();
+    }
+  }
+}
+
 int main() {
   for (int i = 0; i < SZ; i++) {
     starting.data[i][1] = {WHITE, PAWN};
@@ -830,7 +943,6 @@ int main() {
   starting.data[6][7] = {BLACK, KNIGHT};
   starting.data[7][7] = {BLACK, ROOK};
 
-  play_vs_ai();
-
+  uci_communication();
   return 0;
 }
