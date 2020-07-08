@@ -35,6 +35,8 @@ struct square {
   }
 };
 
+struct position;
+
 struct step {
   square from;
   square to;
@@ -71,6 +73,8 @@ struct step {
     }
     cout << endl;
   }
+
+  bool check(position cur);
 };
 
 char to_lower(char c) {
@@ -162,8 +166,6 @@ bool in(int x, int y) {
   return x >= 0 && x < 8 && y >= 0 && y < 8;
 }
 
-struct position;
-
 map <position, int> all_positions;
 
 struct piece {
@@ -250,12 +252,41 @@ struct position {
     return 0;
   }
 
+  bool can_win(bool side) {
+    int found_bishops = 0, found_knights = 0;
+    for (int i = 0; i < SZ; i++) {
+      for (int j = 0; j < SZ; j++) {
+        if (data[i][j].side == side) {
+          if (data[i][j].type == KING) {
+            continue;
+          }
+          if (data[i][j].type == PAWN || data[i][j].type ) {
+            return 1;
+          }
+          if (data[i][j].type == KNIGHT) {
+            found_knights++;
+          }
+          if (data[i][j].type == BISHOP) {
+            found_bishops++;
+          }
+          if (data[i][j].type > BISHOP) {
+            return 1;
+          }
+        }
+      }
+    }
+    return (found_bishops + found_knights >= 2);
+  }
+
   bool draw() { /// only stalemate
-    vector <step> moves = find_moves();
-    if (!win() && moves.empty()) {
+    if (all_positions[*this] >= 3) {
       return 1;
     }
-    if (all_positions[*this] >= 3) {
+    if (!can_win(WHITE) && !can_win(BLACK)) {
+      return 1;
+    }
+    vector <step> moves = find_moves();
+    if (!win() && moves.empty()) {
       return 1;
     }
     return 0;
@@ -355,10 +386,6 @@ struct position {
   step choose_move() {
     pair <step, double> best = search(0, -inf, inf, move);
     return best.first;
-  }
-
-  bool cmp(const step a, const step b) const {
-    return data[a.to.x][a.to.y].type > data[b.to.x][b.to.y].type;
   }
 };
 
@@ -460,7 +487,15 @@ vector <step> position::find_all_moves() {
   return all;
 }
 
+bool step::check(position cur) {
+  cur = make_move(cur, *this);
+  return cur.in_check(cur.move);
+}
+
+int cnt_pos = 0;
+
 pair <step, double> position::search(int depth, double alpha, double beta, bool color) { // returns move and evaluation
+  cnt_pos++;
   step best;
   if (draw()) {
     return {best, 0};
@@ -479,21 +514,29 @@ pair <step, double> position::search(int depth, double alpha, double beta, bool 
   }
   vector <step> all = find_moves();
   double val;
-  vector <step> M[7];
+  vector <vector <step> > M(8);
   for (auto move : all) {
+    if (move.check(*this)) {
+      M[7].push_back(move);
+      continue;
+    }
     M[data[move.to.x][move.to.y].type].push_back(move);
   }
+  best = all[0];
+  // cout << "DEPTH " << depth << " " << all.size() << " " << M[6].size() << " " << M[7].size() << endl;
+  vector <int> I;
   all.clear();
-  for (int i = 0; i < 7; i++) {
+  for (int i = M.size() - 1; i >= 0; i--) {
     for (auto move : M[i]) {
+      I.push_back(i);
       all.push_back(move);
     }
   }
-  reverse(all.begin(), all.end());
   if (color == WHITE) {
     val = -inf;
-    for (auto move : all) {
-      if (data[move.to.x][move.to.y].type == EMPTY && depth >= MIN_DEPTH) {
+    for (int i = 0; i < all.size(); i++) {
+      auto move = all[i];
+      if (I[i] == 0 && depth >= MIN_DEPTH && depth % 2 == 0) {
         continue;
       }
       position nw = make_move(*this, move);
@@ -523,8 +566,9 @@ pair <step, double> position::search(int depth, double alpha, double beta, bool 
   }
   else {
     val = inf;
-    for (auto move : all) {
-      if (data[move.to.x][move.to.y].type == EMPTY && depth >= MIN_DEPTH) {
+    for (int i = 0; i < all.size(); i++) {
+      auto move = all[i];
+      if (I[i] == 0 && depth >= MIN_DEPTH && depth % 2 == 0) {
         continue;
       }
       position nw = make_move(*this, move);
@@ -771,6 +815,8 @@ void play_vs_ai() {
     step best = cur.choose_move();
     // output(best);
     best.output();
+    cout << cnt_pos << endl;
+    cnt_pos = 0;
     cur = make_move(cur, best);
     all_positions[cur]++;
   }
@@ -788,7 +834,7 @@ bool check_move(position &cur, step last) {
   return 0;
 }
 
-void play_vs_human() {
+void play_vs_human() { // used for playing in console
   cout << "CHOOSE YOUR SIDE: TYPE WHITE OR BLACK" << endl;
   string s;
   while (cin >> s) {
@@ -811,7 +857,7 @@ void play_vs_human() {
     best.output();
     cur = make_move(cur, best);
   }
-  while (1) {
+  while (true) {
     if (cur.end_check()) {
       break;
     }
@@ -943,6 +989,7 @@ int main() {
   starting.data[6][7] = {BLACK, KNIGHT};
   starting.data[7][7] = {BLACK, ROOK};
 
+  // play_vs_ai();
   uci_communication();
   return 0;
 }
