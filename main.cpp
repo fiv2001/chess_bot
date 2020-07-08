@@ -1,31 +1,12 @@
 #include <bits/stdc++.h>
+#include "tables.h"
+#include "constants.h"
 
 using namespace std;
 
 mt19937 gen(chrono::steady_clock::now().time_since_epoch().count());
 
-const int inf = 1e9; /// maximum position evaluation
-const int SZ = 8; // size of board
-const double MOVE_COST = 0.05; // used in evaluation
-
-const int EMPTY = 0;
-const int PAWN = 1;
-const int KNIGHT = 2;
-const int BISHOP = 3;
-const int ROOK = 4;
-const int QUEEN = 5;
-const int KING = 6;
-
-const int WHITE = 0;
-const int BLACK = 1;
-
-const int MIN_DEPTH = 3;
-
-const int MAX_DEPTH = 4;
-
-const int MAX_MOVES = 200; /// maximum amount of moves if bot is playing against itself
-
-const string ENGINE_NAME = "some_weird_bot";
+const table strategic_tables;
 
 #define square pair <int, int>
 #define x first
@@ -353,6 +334,22 @@ struct position {
     if (all_positions[*this] >= 2) {
       return 0;
     }
+    double strategic_val = 0;
+    for (int i = 0; i < SZ; i++) {
+      for (int j = 0; j < SZ; j++) {
+        if (data[i][j].type == EMPTY) {
+          continue;
+        }
+        if (data[i][j].side == WHITE) {
+          strategic_val += strategic_tables.data[data[i][j].type][j][i];
+        }
+        else {
+          strategic_val -= strategic_tables.data[data[i][j].type][SZ - j - 1][i]; 
+        }
+      }
+    }
+    strategic_val *= STRATEGIC_MULTIPLIER;
+    ans += strategic_val;
     vector <int> cost = {0, 1, 3, 3, 5, 9, 0};
     for (int i = 0; i < SZ; i++) {
       for (int j = 0; j < SZ; j++) {
@@ -989,6 +986,9 @@ void uci_communication() {
     if (starts_with(command, "go")) {
       input_go();
     }
+    if (command == "stop") {
+      return;
+    }
   }
 }
 
@@ -1016,8 +1016,7 @@ int main() {
   starting.data[5][7] = {BLACK, BISHOP};
   starting.data[6][7] = {BLACK, KNIGHT};
   starting.data[7][7] = {BLACK, ROOK};
-
-  play_vs_ai();
-  // uci_communication();
+  // play_vs_ai();
+  uci_communication();
   return 0;
 }
