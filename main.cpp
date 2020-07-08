@@ -19,7 +19,7 @@ const int KING = 6;
 const int WHITE = 0;
 const int BLACK = 1;
 
-const int MIN_DEPTH = 2;
+const int MIN_DEPTH = 3;
 
 const int MAX_DEPTH = 4;
 
@@ -27,13 +27,9 @@ const int MAX_MOVES = 200; /// maximum amount of moves if bot is playing against
 
 const string ENGINE_NAME = "some_weird_bot";
 
-struct square {
-  int x;
-  int y;
-  bool operator==(square other) {
-    return x == other.x && y == other.y;
-  }
-};
+#define square pair <int, int>
+#define x first
+#define y second
 
 struct position;
 
@@ -316,7 +312,7 @@ struct position {
           cout << ".";
           continue;
         }
-        char x;
+        char x = ' ';
         if (data[j][i].type == PAWN) {
           x = 'P';
         }
@@ -536,7 +532,7 @@ pair <step, double> position::search(int depth, double alpha, double beta, bool 
     val = -inf;
     for (int i = 0; i < all.size(); i++) {
       auto move = all[i];
-      if (I[i] == 0 && depth >= MIN_DEPTH && depth % 2 == 0) {
+      if (I[i] == 0 && depth >= MIN_DEPTH && depth % 2 == MIN_DEPTH % 2) {
         continue;
       }
       position nw = make_move(*this, move);
@@ -568,7 +564,7 @@ pair <step, double> position::search(int depth, double alpha, double beta, bool 
     val = inf;
     for (int i = 0; i < all.size(); i++) {
       auto move = all[i];
-      if (I[i] == 0 && depth >= MIN_DEPTH && depth % 2 == 0) {
+      if (I[i] == 0 && depth >= MIN_DEPTH && depth % 2 == MIN_DEPTH % 2) {
         continue;
       }
       position nw = make_move(*this, move);
@@ -646,8 +642,8 @@ vector <step> piece::get_all_steps(position &cur, int x, int y) {
       // one forward
       if (in(x, y + 1) && cur.data[x][y + 1].type == EMPTY) {
         // promotion
-        if (y == 6) {
-          for (int i = 2; i <= 5; i++) {
+        if (y == SZ - 2) {
+          for (int i = KNIGHT; i <= QUEEN; i++) {
             ans.push_back({{x, y}, {x, y + 1}, i});
           }
         }
@@ -658,12 +654,28 @@ vector <step> piece::get_all_steps(position &cur, int x, int y) {
       // takes right
       if (in(x + 1, y + 1) && cur.data[x + 1][y + 1].type != EMPTY &&
         cur.data[x + 1][y + 1].side != side) {
-          ans.push_back({{x, y}, {x + 1, y + 1}});
+          // promotion
+          if (y == SZ - 2) {
+            for (int i = KNIGHT; i <= QUEEN; i++) {
+              ans.push_back({{x, y}, {x + 1, y + 1}, i});
+            }
+          }
+          else {
+            ans.push_back({{x, y}, {x + 1, y + 1}});
+          }
       }
       // takes left
       if (in(x - 1, y + 1) && cur.data[x - 1][y + 1].type != EMPTY &&
         cur.data[x - 1][y + 1].side != side) {
-          ans.push_back({{x, y}, {x - 1, y + 1}});
+          //promotion
+          if (y == SZ - 2) {
+            for (int i = KNIGHT; i <= QUEEN; i++) {
+              ans.push_back({{x, y}, {x - 1, y + 1}, i});
+            }
+          }
+          else {
+            ans.push_back({{x, y}, {x - 1, y + 1}});
+          }
       }
       // two forward
       if (y == 1 && cur.data[x][y + 1].type == EMPTY &&
@@ -698,12 +710,28 @@ vector <step> piece::get_all_steps(position &cur, int x, int y) {
       // takes right
       if (in(x + 1, y - 1) && cur.data[x + 1][y - 1].type != EMPTY &&
         cur.data[x + 1][y - 1].side != side) {
+        // promotion
+        if (y == 1) {
+          for (int i = KNIGHT; i <= QUEEN; i++) {
+            ans.push_back({{x, y}, {x + 1, y - 1}, i});
+          }
+        }
+        else {
           ans.push_back({{x, y}, {x + 1, y - 1}});
+        }
       }
       // takes left
       if (in(x - 1, y - 1) && cur.data[x - 1][y - 1].type != EMPTY &&
         cur.data[x - 1][y - 1].side != side) {
+        // promotion
+        if (y == 1) {
+          for (int i = KNIGHT; i <= QUEEN; i++) {
+            ans.push_back({{x, y}, {x - 1, y - 1}, i});
+          }
+        }
+        else {
           ans.push_back({{x, y}, {x - 1, y - 1}});
+        }
       }
       // two forward
       if (y == 6 && cur.data[x][y - 1].type == EMPTY &&
@@ -989,7 +1017,7 @@ int main() {
   starting.data[6][7] = {BLACK, KNIGHT};
   starting.data[7][7] = {BLACK, ROOK};
 
-  // play_vs_ai();
-  uci_communication();
+  play_vs_ai();
+  // uci_communication();
   return 0;
 }
