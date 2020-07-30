@@ -5,9 +5,9 @@
 #include "uci.h"
 
 int main() {
-    // play_vs_ai();
     map <position, int> all_positions;
     position current_position;
+    // play_vs_ai();
     uci_communication(all_positions, current_position);
     return 0;
 }

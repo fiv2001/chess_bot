@@ -10,4 +10,6 @@ struct table {
     table();
 };
 
+const table strategic_tables;
+
 #endif

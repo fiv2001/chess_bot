@@ -1,6 +1,8 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
-#include <string>
+#include <bits/stdc++.h>
+
+using namespace std;
 
 const int inf = 1e9; /// maximum position evaluation
 const int SZ = 8; // size of board
