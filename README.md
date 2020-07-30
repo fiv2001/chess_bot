@@ -7,6 +7,6 @@ How to play against it offline:
 
 1. Download a chess GUI. For example, you can take arena : http://www.playwitharena.de/.
 
-2. Install main.exe as a chess engine in the GUI. If you are using an arena, click engine -> install new engine, then choose main.exe.
+2. Download the main.exe file. Install main.exe as a chess engine in the GUI. If you are using an arena, click engine -> install new engine, then choose main.exe.
 
 3. Play against this engine in a GUI.
