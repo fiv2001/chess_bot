@@ -5,7 +5,7 @@ It uses UCI protocol for interaction with GUI.
 
 How to play against it offline:
 
-1. Download a chess GUI. For example, you can take arena : http://www.playwitharena.de/.
+1. Download a chess GUI. For example, you can use arena : http://www.playwitharena.de/.
 
 2. Download the main.exe file. Install main.exe as a chess engine in the GUI. If you are using arena, click engine -> install new engine, then choose main.exe.
 
